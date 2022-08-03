@@ -2,6 +2,7 @@ package com.compiler;
 
 /**
  * 非终结符号
+ * @author kashin
  */
 public class NonTerminal extends Token {
 
