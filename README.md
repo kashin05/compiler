@@ -10,3 +10,6 @@ Syntax Analysis
    - 终结符
    - 非终结符
 - 文法
+
+# 算法
+- FIRST
