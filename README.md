@@ -12,4 +12,6 @@ Syntax Analysis
 - 文法
 
 # 算法
+The construction of both top-down and bottom-up parsers is aided by tow functions FIRST and FOLLOW, associated with a grammar G
 - FIRST
+- FOLLOW
