@@ -5,8 +5,8 @@ Syntax Analysis
 
 # 对象
 - 项
-   -LR(0)item
-   -LR(1)item
+   - LR(0)item
+   - LR(1)item
 - 项集
 - 符号
    - 终结符
