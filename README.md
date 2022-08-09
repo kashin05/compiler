@@ -8,6 +8,8 @@ Syntax Analysis
    - LR(0)item
    - LR(1)item
 - 项集
+   - LR(0)项集
+   - LR(1)项集
 - 符号
    - 终结符
    - 非终结符
@@ -18,3 +20,4 @@ The construction of both top-down and bottom-up parsers is aided by tow function
 - FIRST
 - FOLLOW
 - collection of sets of LR(0)items
+- closure LR(1)items
