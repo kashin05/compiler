@@ -21,3 +21,4 @@ The construction of both top-down and bottom-up parsers is aided by tow function
 - FOLLOW
 - collection of sets of LR(0)items
 - closure LR(1)items
+- LALR(1)项集族的内核的高效计算方法
