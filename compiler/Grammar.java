@@ -1,5 +1,7 @@
 package com.compiler;
 
+import com.compiler.model.Lookaheads;
+
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -22,10 +24,234 @@ public class Grammar {
     /** LR0项集族 */
     protected Set<SetOfItem> setOfItemsLR0 = new HashSet<>();
     /** LR1项集族 */
-    protected Set<LR1SetOfItem> setOfItemsLR1 = new HashSet<>();
+    protected Set<SetOfLR1Item> setOfItemsLR1 = new HashSet<>();
+
+    private Map<Integer, SetOfLR1Item> id2itemsLR1 = new HashMap<>();
 
     /** 项集的GOTO关系 */
     protected Map<Integer, Map<Token, Integer>> itemGoToItem = new HashMap<>();
+
+    public static void main(String[] args) {
+
+        buildGrammarForExample4_61().algorithm_4_63();
+
+    }
+
+    /**
+     * 构建例4.61增广文法 P173
+     * @return
+     */
+    private static Grammar buildGrammarForExample4_61() {
+        Grammar grammar = new Grammar();
+        grammar.start = NonTerminal.of("S'");
+        grammar.add(NonTerminal.of("S'"), Arrays.asList(NonTerminal.of("S")));
+        grammar.add(NonTerminal.of("S"), Arrays.asList(NonTerminal.of("L"), Terminal.of("="), NonTerminal.of("R")));
+        grammar.add(NonTerminal.of("S"), Arrays.asList(NonTerminal.of("R")));
+        grammar.add(NonTerminal.of("L"), Arrays.asList(Terminal.of("*"), NonTerminal.of("R")));
+        grammar.add(NonTerminal.of("L"), Arrays.asList(Terminal.of("id")));
+        grammar.add(NonTerminal.of("R"), Arrays.asList(NonTerminal.of("L")));
+        return grammar;
+    }
+
+    public void add(NonTerminal head, List<Token> body) {
+        Production production = new Production();
+        production.head = head;
+        production.body = new ArrayList<>(body);
+        productionList.add(production);
+
+        tokens.add(head);
+        tokens.addAll(body);
+    }
+
+    /**
+     * LALR(1)项集族的内核的高效计算方法
+     * LALR(1) collection of sets of items
+     * P174 Efficient computation of the kernels of the LALR(1) collection of sets of items
+     */
+    public void algorithm_4_63() {
+        // Construct the kernels of the sets of LR(0) items for G
+        buildLR0SetOfItem();
+        // remove the nonkernel items
+        removeNonKernelFormLR0SetOfItems();
+
+        // determine which lookaheads are spontaneously,
+        // and which items in lookaheads are propagated
+
+        initLR1SetOfItem();
+
+        // the first pass
+        List<SetOfLR1Item> lr1SetOfItems = new ArrayList<>();
+        for (SetOfItem item : this.setOfItemsLR0) {
+            SetOfLR1Item lr1SetOfItem = SetOfLR1Item.of(item, Terminal.of("#"));
+            lr1SetOfItems.add(SetOfLR1Item.of(lr1SetOfItem));
+        }
+
+        List<Lookaheads> lookaheadsList = determiningLookaheads(lr1SetOfItems);
+        updateLR1ItemLookaheadOfSpontaneous(lookaheadsList);
+
+        // the spontaneous lookahead $ for the initial item S'->•S
+        BreakForSetOfLR1Item:
+        for (SetOfLR1Item lr1SetOfItem : getSetOfItemsLR1()) {
+            for (LR1Item lr1Item : lr1SetOfItem.lr1items) {
+                if (lr1Item.production.head.equals(start)) {
+                    Set<Terminal> lookForwards = new HashSet<>();
+                    lookForwards.add(Terminal.of("$"));
+                    lr1Item.lookaheads = lookForwards;
+                    break BreakForSetOfLR1Item;
+                }
+            }
+        }
+
+        int i = 1;
+        boolean propagation;// 是否有新的向前看符号被传播
+        do {
+            int scanPass = i++;
+            System.err.println("-----------------------第"+ scanPass +"趟扫描，确定传播的向前看符号");
+
+            // 复制一份当前的LR1项集族，防止当前扫描的结果，又被用于这次扫描
+            List<SetOfLR1Item> newSetOfItem = new ArrayList<>();
+            for (SetOfLR1Item lr1SetOfItem : getSetOfItemsLR1()) {
+                SetOfLR1Item lr1SetOfItemCopy = SetOfLR1Item.of(lr1SetOfItem);
+                newSetOfItem.add(lr1SetOfItemCopy);
+            }
+
+            List<Lookaheads> lookaheads = determiningLookaheads(newSetOfItem);
+            propagation = updateLR1ItemLookaheadOfPropagation(lookaheads);
+
+            printLR1();
+        } while (propagation);
+    }
+
+    /**
+     * 更新传播的向前看符号
+     * @param lookaheads
+     * @return
+     */
+    private boolean updateLR1ItemLookaheadOfPropagation(List<Lookaheads> lookaheads) {
+        boolean propagation = false;
+        for (Lookaheads lookahead : lookaheads) {
+            if (lookahead.propagation.isEmpty()) {
+                continue;
+            }
+
+            SetOfLR1Item gotoSetOfItem = getLR1SetOfItem(lookahead.gotoSetOfItem.id);
+            for (LR1Item lr1item : gotoSetOfItem.lr1items) {
+                if (lr1item.production.equals(lookahead.gotoItem.production)) {
+                    lr1item.lookaheads.addAll(lookahead.propagation);
+                    propagation = true;
+                }
+            }
+        }
+        return propagation;
+    }
+
+    /**
+     * 更新自发生的向前看符号
+     * @param lookaheads
+     * @return
+     */
+    private boolean updateLR1ItemLookaheadOfSpontaneous(List<Lookaheads> lookaheads) {
+        boolean propagation = false;
+        for (Lookaheads lookahead : lookaheads) {
+            if (lookahead.spontaneous.isEmpty()) {
+                continue;
+            }
+
+            SetOfLR1Item gotoSetOfItem = getLR1SetOfItem(lookahead.gotoSetOfItem.id);
+            for (LR1Item lr1item : gotoSetOfItem.lr1items) {
+                if (lr1item.production.equals(lookahead.gotoItem.production)) {
+                    lr1item.lookaheads.addAll(lookahead.spontaneous);
+                    propagation = true;
+                }
+            }
+        }
+        return propagation;
+    }
+
+    /**
+     * 算法4.62
+     * 确定向前看符号
+     * @param setOfItems LR1项集族，每个LR1项集必须计算过闭包
+     */
+    public List<Lookaheads> determiningLookaheads(List<SetOfLR1Item> setOfItems) {
+
+        List<Lookaheads> result = new ArrayList<>();
+
+        for (SetOfLR1Item sourceSet : setOfItems) {// 遍历项集
+
+            for (LR1Item sourceItem : sourceSet.lr1items) {// 遍历项
+
+                SetOfLR1Item lr1SetOfItem = SetOfLR1Item.of(sourceSet.id, sourceItem.copy());
+
+                lr1SetOfItem.closureLR1(this);
+
+                for (LR1Item lr1Item : lr1SetOfItem.lr1items) {
+
+                    if (lr1Item.isDotAtRight()) {
+                        continue;
+                    }
+
+                    Set<Terminal> propagation = new HashSet<>();// 传播
+                    Set<Terminal> spontaneous = new HashSet<>();// 自发生
+
+                    for (Terminal terminal : lr1Item.lookaheads) {
+                        if (sourceItem.lookaheads.contains(terminal)) {
+                            // 向前看符号是传播的
+                            propagation.add(terminal);
+                        } else {
+                            // 向前看符号是自发生
+                            spontaneous.add(terminal);
+                        }
+                    }
+
+                    Token token = lr1Item.production.getToken(lr1Item.pos);
+                    Integer nextSetId = getGoto(lr1SetOfItem.id, token);
+                    if (nextSetId == null) {
+                        throw new RuntimeException("项集[" + lr1SetOfItem.id + "]在符号[" + token + "]上没有跳转");
+                    }
+
+                    SetOfLR1Item gotoSetOfItem = getLR1SetOfItem(nextSetId);
+
+                    // 找到相应的GOTO项
+                    LR1Item gotoItem = null;
+                    for (LR1Item temp : gotoSetOfItem.lr1items) {
+                        if (temp.production.equals(lr1Item.production)) {
+                            gotoItem = temp;
+                            break;
+                        }
+                    }
+
+                    Iterator<Terminal> iterator = propagation.iterator();
+                    while (iterator.hasNext()) {
+                        // 去掉旧的传播的向前看符号
+                        if (gotoItem.lookaheads.contains(iterator.next())) {
+                            iterator.remove();
+                        }
+                    }
+
+                    Lookaheads e = new Lookaheads();
+                    e.sourceSetOfItem = sourceSet;
+                    e.sourceItem = sourceItem;
+                    e.gotoSetOfItem = gotoSetOfItem;
+                    e.gotoItem = gotoItem;
+                    e.propagation = propagation;
+                    e.spontaneous = spontaneous;
+                    result.add(e);
+
+                    e.print();
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 删除LR(0)项集的非内核项
+     */
+    public void removeNonKernelFormLR0SetOfItems() {
+        setOfItemsLR0.forEach(item->item.delNonkernel(start));
+    }
 
     /**
      * LR0 项集族计算
@@ -153,6 +379,22 @@ public class Grammar {
         return result;
     }
 
+    /**
+     * 初始化LR1项集族<br/>
+     * 没有确定向前看符号
+     */
+    public void initLR1SetOfItem() {
+        for (SetOfItem setOfItem : setOfItemsLR0) {
+            SetOfLR1Item lr1SetOfItem = new SetOfLR1Item();
+            lr1SetOfItem.id = setOfItem.id;
+            for (Item item1 : setOfItem.items) {
+                LR1Item e = new LR1Item(item1, new HashSet<>());
+                lr1SetOfItem.lr1items.add(e);
+            }
+            addLR1SetOfItem(lr1SetOfItem);
+        }
+    }
+
     public List<Production> getProduction(NonTerminal head) {
         List<Production> result = new ArrayList<>();
         for (Production production : productionList) {
@@ -163,7 +405,40 @@ public class Grammar {
         return result;
     }
 
+    /**
+     *
+     * @param start 起始状态
+     * @param token 文法符号
+     * @return 目标状态
+     */
+    public Integer getGoto(Integer start, Token token) {
+        Map<Token, Integer> idToken = itemGoToItem.get(start);
+        return idToken.get(token);
+    }
+
+    public SetOfLR1Item getLR1SetOfItem(int id) {
+        return id2itemsLR1.get(id);
+    }
+
+    public void addLR1SetOfItem(SetOfLR1Item e) {
+        setOfItemsLR1.add(e);
+        id2itemsLR1.put(e.id, e);
+    }
+
+    public Set<SetOfLR1Item> getSetOfItemsLR1() {
+        return Collections.unmodifiableSet(this.setOfItemsLR1);
+    }
+
     public int nextId() {
         return idGen.incrementAndGet();
+    }
+
+    public void printLR1() {
+        setOfItemsLR1.forEach(lr1SetOfItem -> {
+            System.err.println("id = " + lr1SetOfItem.id);
+            lr1SetOfItem.lr1items.forEach(lr1Item -> {
+                System.err.println("\t" + lr1Item);
+            });
+        });
     }
 }
