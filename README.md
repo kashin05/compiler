@@ -26,11 +26,12 @@ The construction of both top-down and bottom-up parsers is aided by tow function
 - 打印语法分析表 print Parsing Table
 
 # 例
-|  |$      |c      |d      |C      |S      
-|1 |       |Shift  |Shift  |Goto   |Goto   
-|3 |       |Shift  |Shift  |Goto   |       
-|2 |Accept |       |       |       |       
-|4 |       |Shift  |Shift  |Goto   |       
-|5 |Reduce |Reduce |Reduce |       |       
-|6 |Reduce |       |       |       |       
-|7 |Reduce |Reduce |Reduce |       |       
+|  |$      |c      |d      |C      |S     |
+|--|-------|-------|-------|-------|------|
+|1 |       |Shift  |Shift  |Goto   |Goto  | 
+|3 |       |Shift  |Shift  |Goto   |      | 
+|2 |Accept |       |       |       |      | 
+|4 |       |Shift  |Shift  |Goto   |      | 
+|5 |Reduce |Reduce |Reduce |       |      | 
+|6 |Reduce |       |       |       |      | 
+|7 |Reduce |Reduce |Reduce |       |      | 
