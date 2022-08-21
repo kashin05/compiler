@@ -1,9 +1,6 @@
 package com.compiler;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 /**
  * LR(1)项集
@@ -13,6 +10,7 @@ public class SetOfLR1Item extends SetOfItem {
 
     /** LR(1)项 */
     protected Set<LR1Item> lr1items = new HashSet<>();
+    protected List<LR1Item> lr1itemList = new ArrayList<>();// 保存项的加入顺序
 
     public SetOfLR1Item() {}
 
@@ -69,6 +67,8 @@ public class SetOfLR1Item extends SetOfItem {
      */
     public void closureLR1(Grammar grammar) {
 
+        lr1itemList.addAll(lr1items);
+
         boolean addNew;
         do {
             addNew = false;
@@ -106,6 +106,7 @@ public class SetOfLR1Item extends SetOfItem {
                         continue;
                     }
                     lr1items.add(lr1Item);
+                    lr1itemList.add(lr1Item);
                     addNew = true;
                 }
             }
@@ -115,6 +116,18 @@ public class SetOfLR1Item extends SetOfItem {
     @Override
     public String toString() {
         return "LR1SetOfItem{" + "id=" + id + ", " + lr1items + '}';
+    }
+
+    public String toStringOrder() {
+        String result = "LR1SetOfItem{" + "id=" + id + ", ";
+        //result += lr1itemList;
+        for (LR1Item lr1Item : lr1itemList) {
+            result += lr1Item;
+            result += ';';
+            result += ' ';
+        }
+        result += '}';
+        return result;
     }
 
     @Override

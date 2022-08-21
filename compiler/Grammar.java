@@ -19,7 +19,7 @@ public class Grammar {
     /** 产生式 */
     protected List<Production> productionList = new ArrayList<>();
     /** 所有符号 */
-    protected Set<Token> tokens = new HashSet<>();
+    protected Map<String, Token> tokens = new HashMap<>();
 
     /** LR0项集族 */
     protected Set<SetOfItem> setOfItemsLR0 = new HashSet<>();
@@ -31,10 +31,16 @@ public class Grammar {
     /** 项集的GOTO关系 */
     protected Map<Integer, Map<Token, Integer>> itemGoToItem = new HashMap<>();
 
+    /** 语法分析表 LR Parsing Table */
+    protected Map<String, Action> parsingTable = new HashMap<>();
+
     public static void main(String[] args) {
 
-        buildGrammarForExample4_61().algorithm_4_63();
-
+        Grammar grammar = buildGrammarForExample4_55();
+        grammar.algorithm_4_63();
+        grammar.buildParsingTable();
+        grammar.printParsingTable();
+        LogUtil.flushLog();
     }
 
     /**
@@ -50,8 +56,169 @@ public class Grammar {
         grammar.add(NonTerminal.of("L"), Arrays.asList(Terminal.of("*"), NonTerminal.of("R")));
         grammar.add(NonTerminal.of("L"), Arrays.asList(Terminal.of("id")));
         grammar.add(NonTerminal.of("R"), Arrays.asList(NonTerminal.of("L")));
+        grammar.tokens.put("$", Terminal.of("$"));
         return grammar;
     }
+
+    private static Grammar buildGrammarForExample4_55() {
+        Grammar grammar = new Grammar();
+        grammar.start = NonTerminal.of("S'");
+        grammar.add(NonTerminal.of("S'"), Arrays.asList(NonTerminal.of("S")));
+        grammar.add(NonTerminal.of("S"), Arrays.asList(NonTerminal.of("C"), NonTerminal.of("C")));
+        grammar.add(NonTerminal.of("C"), Arrays.asList(Terminal.of("c"), NonTerminal.of("C")));
+        grammar.add(NonTerminal.of("C"), Arrays.asList(Terminal.of("d")));
+        grammar.tokens.put("$", Terminal.of("$"));
+        return grammar;
+    }
+
+
+    public void putAction(int setId, Token symbol, Action action) {
+        parsingTable.put(setId + "_" + symbol, action);
+    }
+
+    public Action getAction(int setId, Token symbol) {
+        return parsingTable.get(setId + "_" + symbol);
+    }
+
+    public static final int colSize = 7;
+
+    /**
+     * 打印语法分析表
+     */
+    public void printParsingTable() {
+
+        List<Integer> stateList = new ArrayList<>();
+        List<Token> symbolList = new ArrayList<>();
+
+        for (Map.Entry<String, Action> tableEntry : parsingTable.entrySet()) {
+            String idSymbol = tableEntry.getKey();
+            Integer state = Integer.valueOf(idSymbol.split("_")[0]);
+            Token symbol = tokens.get(idSymbol.split("_")[1]);
+            Action action = tableEntry.getValue();
+
+            if (!stateList.contains(state)) {
+                stateList.add(state);
+            }
+            if (!symbolList.contains(symbol)) {
+                symbolList.add(symbol);
+            }
+        }
+
+        Collections.sort(symbolList, (a, b)->{
+
+            if (a.name.equals(b.name)) {
+                return 0;
+            }
+
+            if (a instanceof Terminal) {
+                if (b instanceof Terminal) {
+                    return a.name.compareTo(b.name);
+                }
+                if (b instanceof NonTerminal) {
+                    return -1;
+                }
+            }
+            if (b instanceof NonTerminal) {
+                if (a instanceof Terminal) {
+                    return 1;
+                }
+                if (a instanceof NonTerminal) {
+                    return a.name.compareTo(b.name);
+                }
+            }
+
+            throw new RuntimeException("symbol illegal");
+        });
+
+        LogUtil.logNln("  ");
+        for (Token token : symbolList) {
+            String tokenStr = token.toString();
+            while (tokenStr.toCharArray().length < colSize) {
+                tokenStr += ' ';
+            }
+            LogUtil.logNln(tokenStr);
+        }
+        LogUtil.log("");
+        for (Integer state : stateList) {
+            LogUtil.logNln(state.toString());
+            LogUtil.logNln(" ");
+
+            for (Token token : symbolList) {
+                Action action = getAction(state, token);
+                if (action == null) {
+                    String actionName = "";
+                    while (actionName.toCharArray().length < colSize) {
+                        actionName += ' ';
+                    }
+                    LogUtil.logNln(actionName);
+                } else {
+                    String actionName = action.type.name();
+                    while (actionName.toCharArray().length < colSize) {
+                        actionName += ' ';
+                    }
+                    LogUtil.logNln(actionName);
+                }
+            }
+
+            LogUtil.log("");
+        }
+    }
+
+    /**
+     * 算法4.56 p169
+     * 构造规范LR语法分析表
+     * Construction of canonical-LR parsing tables
+     */
+    public void buildParsingTable() {
+
+        LogUtil.log("print LR(1) kernels");
+        for (SetOfLR1Item setOfLR1Item : setOfItemsLR1) {
+            LogUtil.log(setOfLR1Item.toString());
+        }
+
+        // 对LR(1)内核求闭包
+        for (SetOfLR1Item setOfLR1Item : setOfItemsLR1) {
+            setOfLR1Item.closureLR1(this);
+        }
+
+        LogUtil.log("print LR(1) after closure");
+        for (SetOfLR1Item setOfLR1Item : setOfItemsLR1) {
+            LogUtil.log(setOfLR1Item.toStringOrder());
+        }
+
+        // Action
+        for (SetOfLR1Item setOfLR1Item : setOfItemsLR1) {
+            for (LR1Item lr1Item : setOfLR1Item.lr1itemList) {
+                if (lr1Item.isDotAtRight()) {
+                    if (lr1Item.production.head.equals(this.start)) {// S'->S•
+                        if (lr1Item.lookaheads.contains(Terminal.of("$"))) {
+                            // 接受
+                            putAction(setOfLR1Item.id, Terminal.of("$"), Action.of(ActionType.Accept));
+                        }
+                    } else {
+                        for (Terminal lookahead : lr1Item.lookaheads) {
+                            // 规约
+                            putAction(setOfLR1Item.id, lookahead, Action.of(ActionType.Reduce, lr1Item.production));
+                        }
+                    }
+                } else {
+                    Token token = lr1Item.production.getToken(lr1Item.pos);
+                    Integer gotoSetId = getGoto(setOfLR1Item.id, token);
+                    if (token instanceof Terminal) {// 终结符
+                        // 移入
+                        putAction(setOfLR1Item.id, token, Action.of(ActionType.Shift, gotoSetId));
+                    } else {
+                        // GOTO
+                        putAction(setOfLR1Item.id, token, Action.of(ActionType.Goto, gotoSetId));
+                    }
+                }
+            }
+        }
+
+
+    }
+
+
 
     public void add(NonTerminal head, List<Token> body) {
         Production production = new Production();
@@ -59,8 +226,10 @@ public class Grammar {
         production.body = new ArrayList<>(body);
         productionList.add(production);
 
-        tokens.add(head);
-        tokens.addAll(body);
+        tokens.put(head.name, head);
+        for (Token token : body) {
+            tokens.put(token.name, token);
+        }
     }
 
     /**
@@ -280,7 +449,7 @@ public class Grammar {
 
             Set<SetOfItem> allItemsLR0 = new HashSet<>(setOfItemsLR0);
             for (SetOfItem setOfItem : allItemsLR0) {
-                for (Token token : tokens) {
+                for (Token token : tokens.values()) {
                     SetOfItem setOfItem1 = setOfItem.gotoSetOfItem(this, token);
                     // GOTO集合为空
                     if (setOfItem1.items.isEmpty()) {
