@@ -36,3 +36,20 @@ The construction of both top-down and bottom-up parsers is aided by tow function
 |5 |Reduce |Reduce |Reduce |       |      | 
 |6 |Reduce |       |       |       |      | 
 |7 |Reduce |Reduce |Reduce |       |      | 
+# moves of an LR parser on input
+| stack    | symbols   | input           | action                 |
+| -------- | --------- | --------------- | ---------------------- |
+|1         |           | id *  id +  id $ | 移入 id push state 6   |
+|1 6       |  id       | *  id +  id $    | 规约 6 * push state 4  |
+|1 4       |  F        | *  id +  id $    | 规约 4 * push state 3  |
+|1 3       |  T        | *  id +  id $    | 移入 * push state 7    |
+|1 3 7     |  T *      | id +  id $       | 移入 id push state 6   |
+|1 3 7 6   |  T * id   | +  id $          | 规约 6 + push state 10 |
+|1 3 7 10  |  T * F    | +  id $          | 规约 10 + push state 3 |
+|1 3       |  T        | +  id $          | 规约 3 + push state 2  |
+|1 2       |  S        | +  id $          | 移入 + push state 8    |
+|1 2 8     |  S +      | id $             | 移入 id push state 6   |
+|1 2 8 6   |  S + id   | $                | 规约 6 $ push state 4  |
+|1 2 8 4   |  S + F    | $                | 规约 4 $ push state 11 |
+|1 2 8 11  |  S + T    | $                | 规约 11 $ push state 2 |
+|1 2       |  S        | $                | 接受，语法分析完成        |
