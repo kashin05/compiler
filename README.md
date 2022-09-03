@@ -26,7 +26,7 @@ The construction of both top-down and bottom-up parsers is aided by tow function
 - 打印语法分析表 print Parsing Table
 - LR语法分析算法 Algorithm4.44 LR-parsing algorithm
 
-# 例
+# 例 程序完成后打印下面的表格
 |  |$      |c      |d      |C      |S     |
 |--|-------|-------|-------|-------|------|
 |1 |       |Shift  |Shift  |Goto   |Goto  | 
