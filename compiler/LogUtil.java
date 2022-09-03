@@ -10,17 +10,19 @@ public abstract class LogUtil {
     public static final LinkedList<String> strList = new LinkedList<>();
 
     public static void log(String str) {
-        strList.add(str + "\n");
+        System.out.print(str + "\n");
     }
 
     public static void logNln(String str) {
-        strList.add(str);
+        System.out.print(str);
     }
 
-    public static void flushLog() {
-        for (String s : strList) {
-            System.err.print(s);
+    public static void logNln(String str, int colSize) {
+        String actionName = str;
+        while (actionName.toCharArray().length < colSize) {
+            actionName += ' ';
         }
+        System.out.print(actionName);
     }
 
 }

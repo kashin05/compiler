@@ -35,12 +35,33 @@ public class Grammar {
     protected Map<String, Action> parsingTable = new HashMap<>();
 
     public static void main(String[] args) {
-
-        Grammar grammar = buildGrammarForExample4_55();
+        Grammar grammar = buildGrammarForExample4_45();
         grammar.algorithm_4_63();
         grammar.buildParsingTable();
         grammar.printParsingTable();
-        LogUtil.flushLog();
+        // id * id + id
+        grammar.LR_parsing(new LinkedList<>(Arrays.asList(Terminal.of("id"), Terminal.of("*"), Terminal.of("id"), Terminal.of("+"), Terminal.of("id"), Terminal.of("$"))));
+    }
+
+
+
+    /**
+     * 例4.45
+     * @return
+     */
+    private static Grammar buildGrammarForExample4_45() {
+        Grammar grammar = new Grammar();
+        grammar.start = NonTerminal.of("S'");
+        grammar.add(NonTerminal.of("S'"), Arrays.asList(NonTerminal.of("S")));
+        grammar.add(NonTerminal.of("S"), Arrays.asList(NonTerminal.of("S"), Terminal.of("+"), NonTerminal.of("T")));
+        grammar.add(NonTerminal.of("S"), Arrays.asList(NonTerminal.of("T")));
+        grammar.add(NonTerminal.of("T"), Arrays.asList(NonTerminal.of("T"), Terminal.of("*"), NonTerminal.of("F")));
+        grammar.add(NonTerminal.of("T"), Arrays.asList(NonTerminal.of("F")));
+        grammar.add(NonTerminal.of("F"), Arrays.asList(Terminal.of("("),NonTerminal.of("S"),Terminal.of(")")));
+        grammar.add(NonTerminal.of("F"), Arrays.asList(Terminal.of("id")));
+        grammar.tokens.put("$", Terminal.of("$"));
+
+        return grammar;
     }
 
     /**
@@ -80,7 +101,7 @@ public class Grammar {
         return parsingTable.get(setId + "_" + symbol);
     }
 
-    public static final int colSize = 7;
+    public static final int colSize = 8;
 
     /**
      * 打印语法分析表
@@ -118,45 +139,34 @@ public class Grammar {
                     return -1;
                 }
             }
-            if (b instanceof NonTerminal) {
-                if (a instanceof Terminal) {
+            if (a instanceof NonTerminal) {
+                if (b instanceof Terminal) {
                     return 1;
                 }
-                if (a instanceof NonTerminal) {
+                if (b instanceof NonTerminal) {
                     return a.name.compareTo(b.name);
                 }
             }
 
-            throw new RuntimeException("symbol illegal");
+            throw new RuntimeException("symbol illegal" + a + " = "+ b);
         });
 
-        LogUtil.logNln("  ");
+        LogUtil.logNln("", 2);
+        LogUtil.logNln(" ");
         for (Token token : symbolList) {
-            String tokenStr = token.toString();
-            while (tokenStr.toCharArray().length < colSize) {
-                tokenStr += ' ';
-            }
-            LogUtil.logNln(tokenStr);
+            LogUtil.logNln(token.toString(), colSize);
         }
         LogUtil.log("");
         for (Integer state : stateList) {
-            LogUtil.logNln(state.toString());
+            LogUtil.logNln(state.toString(), 2);
             LogUtil.logNln(" ");
 
             for (Token token : symbolList) {
                 Action action = getAction(state, token);
                 if (action == null) {
-                    String actionName = "";
-                    while (actionName.toCharArray().length < colSize) {
-                        actionName += ' ';
-                    }
-                    LogUtil.logNln(actionName);
+                    LogUtil.logNln("", colSize);
                 } else {
-                    String actionName = action.type.name();
-                    while (actionName.toCharArray().length < colSize) {
-                        actionName += ' ';
-                    }
-                    LogUtil.logNln(actionName);
+                    LogUtil.logNln(action.type.name(), colSize);
                 }
             }
 
@@ -261,8 +271,9 @@ public class Grammar {
         // the spontaneous lookahead $ for the initial item S'->•S
         BreakForSetOfLR1Item:
         for (SetOfLR1Item lr1SetOfItem : getSetOfItemsLR1()) {
+            LogUtil.logNln("");
             for (LR1Item lr1Item : lr1SetOfItem.lr1items) {
-                if (lr1Item.production.head.equals(start)) {
+                if (lr1Item.production.head.equals(start) && lr1Item.pos == 0) {
                     Set<Terminal> lookForwards = new HashSet<>();
                     lookForwards.add(Terminal.of("$"));
                     lr1Item.lookaheads = lookForwards;
@@ -270,6 +281,9 @@ public class Grammar {
                 }
             }
         }
+
+        System.err.println("-----------------------第"+ 0 +"趟扫描，初始值");
+        printLR1();
 
         int i = 1;
         boolean propagation;// 是否有新的向前看符号被传播
@@ -413,6 +427,56 @@ public class Grammar {
         }
 
         return result;
+    }
+
+    /**
+     * p159
+     * Algorithm4.44 LR-parsing algorithm
+     * LR 语法分析算法
+     */
+    public void LR_parsing(LinkedList<Terminal> w) {
+
+        Stack<Integer> stateStack = new Stack<>();
+        stateStack.push(1);
+
+        while (true) {
+            Integer state = stateStack.peek();
+            Terminal symbol = w.getFirst();
+            final Action action = getAction(state, symbol);
+            if (action == null) {
+                throw new RuntimeException("state:" + state + " symbol:" + symbol + " 没有找到动作");
+            }
+            switch (action.type) {
+                case Goto:
+                    //
+                    break;
+                case Shift:
+                    stateStack.push(action.state);
+                    w.removeFirst();
+                    LogUtil.log("移入 " + symbol + " push state " + action.state);
+                    break;
+                case Reduce:
+                    for (Token token : action.production.body) {
+                        stateStack.pop();
+                    }
+                    Integer top = stateStack.peek();
+                    Action actionGoto = getAction(top, action.production.head);
+                    if (actionGoto == null) {
+                        LogUtil.log("规约前状态 " + state);
+                        LogUtil.log("规约符号  " + w.getFirst());
+                        LogUtil.log("规约产生式  " + action.production);
+                        LogUtil.log("规约后状态 " + top + "没有找到GOTO");
+                        throw new RuntimeException("Reduce Exception");
+                    }
+                    stateStack.push(actionGoto.state);
+                    LogUtil.log("规约 " + state + " " + symbol + " push state " + actionGoto.state);
+                    break;
+                case Accept:
+                    LogUtil.log("接受，语法分析完成");
+                    return;
+            }
+        }
+
     }
 
     /**
