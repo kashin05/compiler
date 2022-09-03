@@ -24,6 +24,7 @@ The construction of both top-down and bottom-up parsers is aided by tow function
 - LALR(1)项集族的内核的高效计算方法
 - 高效构造LALR语法分析表 Efficient Construction of LALR Parsing Tables
 - 打印语法分析表 print Parsing Table
+- LR语法分析算法 Algorithm4.44 LR-parsing algorithm
 
 # 例
 |  |$      |c      |d      |C      |S     |
